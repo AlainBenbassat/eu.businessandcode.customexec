@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<menu>
+  <item>
+    <path>civicrm/customexec</path>
+    <page_callback>CRM_Customexec_Page_CustomExecStart</page_callback>
+    <title>CustomExecStart</title>
+    <access_arguments>access CiviCRM</access_arguments>
+  </item>
+</menu>
