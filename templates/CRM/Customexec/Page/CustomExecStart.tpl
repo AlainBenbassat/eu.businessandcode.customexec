@@ -1,8 +1,14 @@
-{section name=id loop=$group}
-<h3>{$group[id]}</h3>
-<p>Found: {$found[id]}</p>
-<p>Not found: {$notfound[id]}</p>
-<p>Multi: {$multiple[id]}</p>
-<p>{$errorMessage[id]}</p>
+<p>Found: {$found}</p>
+<p>Not found: {$notfound}</p>
+<p>Multi: {$multiple}</p>
+
+<h3>Errors</h3>
+<ul>
+{section name=id loop=$errorMessage}
+    <li>{$errorMessage[id]}</li>
 {/section}
+</ul>
+
+
+
 

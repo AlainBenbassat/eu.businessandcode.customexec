@@ -7,29 +7,21 @@ set_time_limit(0);
 use CRM_Customexec_ExtensionUtil as E;
 
 class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
-  private $group = [];
-  private $notfound = [];
-  private $found = [];
-  private $multiMatch = [];
+  private $notfound = 0;
+  private $found = 0;
+  private $multiMatch = 0;
   private $errorMessage = [];
-  private $index = -1;
 
   public function run() {
     CRM_Utils_System::setTitle(E::ts('Custom Code Execution'));
 
-    require_once 'extra.php';
+    $limit = CRM_Utils_Array::value('limit', $_GET);
+    if (!$limit) {
+      $limit = 1;
+    }
 
-    $this->processContacts('beleidKunstendecreet', $beleidKunstendecreet);
-    $this->processContacts('positieKunstenaar', $positieKunstenaar);
-    $this->processContacts('calls', $calls);
-    $this->processContacts('documentatie', $documentatie);
-    $this->processContacts('internationaalWerken', $internationaalWerken);
-    $this->processContacts('interculturaliteit', $interculturaliteit);
-    $this->processContacts('cultuurLokaal', $cultuurLokaal);
-    $this->processContacts('publiekeRuimte', $publiekeRuimte);
+    $this->processContacts($limit);
 
-
-    $this->assign('group', $this->group);
     $this->assign('found', $this->found);
     $this->assign('notfound', $this->notfound);
     $this->assign('multiple', $this->multiMatch);
@@ -38,21 +30,14 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
     parent::run();
   }
 
-  private function processContacts($groupName, $list) {
-    $errorList = [];
+  private function processContacts($limit) {
+    $sql = "select * from tmp_import_initiatieven where contact_id IS NULL and skip = 0 order by id limit 0,$limit";
+    $dao = CRM_Core_DAO::executeQuery($sql);
 
-    $this->index++;
-
-    $this->group[$this->index] = $groupName;
-    $this->notfound[$this->index] = 0;
-    $this->found[$this->index] = 0;
-    $this->multiMatch[$this->index] = 0;
-
-
-    foreach ($list as $email) {
+    while ($dao->fetch()) {
       // lookup the contact based on the email
       $params = [
-        'email' => $email,
+        'email' => $dao->email,
         'contact_type' => 'Individual',
         'is_deleted' => 0,
         'sequential' => 1,
@@ -61,29 +46,60 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
 
       // check if new, existing, or multiple matches
       if ($contact['count'] == 0) {
-        $this->notfound[$this->index]++;
+        $this->notfound++;
 
         // create contact
-        $contactID = $this->createContact($email);
-        $this->updateNewsletterPrefs($contactID, $groupName);
+        $contactID = $this->createContact($dao->email);
+
+        if ($dao->opt_out) {
+          $this->optOut($dao->id, $contactID);
+        }
+        else {
+          $this->updateNewsletterPrefs($dao->id, $contactID, $dao->group_name);
+        }
       }
       else if ($contact['count'] == 1) {
-        $this->found[$this->index]++;
-        $this->updateNewsletterPrefs($contact['id'], $groupName);
+        $this->found++;
+
+        if ($dao->opt_out) {
+          $this->optOut($dao->id, $contactID);
+        }
+        else {
+          $this->updateNewsletterPrefs($dao->id, $contact['id'], $dao->group_name);
+        }
       }
       else {
-        $this->multiMatch[$this->index]++;
-        $errorList[] = $email;
+        $this->multiMatch++;
+        $this->errorMessage[] = $dao->email;
+        $this->updateRecord($dao->id, 'NULL', 1);
       }
     }
+  }
 
-    $this->errorMessage[$this->index] = implode(', ', $errorList);
+  private function updateRecord($id, $contactID, $skip) {
+    $sql = "update tmp_import_initiatieven
+      set contact_id = $contactID, skip = $skip
+      where id = $id
+    ";
+    CRM_Core_DAO::executeQuery($sql);
+  }
+
+  private function optOut($tmpTableID, $contactID) {
+    $params = [
+      'id' => $contactID,
+      'is_opt_out' => 1,
+    ];
+    civicrm_api3("Contact", "create", $params);
+
+    // mark as processed
+    $this->updateRecord($tmpTableID, $contactID, 0);
   }
 
   private function createContact($email) {
     $params = [
       'contact_type' => 'Individual',
       'first_name' => $email,
+      'source' => 'import mei 2018',
       'api.email.create' => [
         'email' => $email,
         'location_type_id' => 2,
@@ -93,7 +109,7 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
     return $contact['id'];
   }
 
-  private function updateNewsletterPrefs($contactID, $groupName) {
+  private function updateNewsletterPrefs($tmpTableID, $contactID, $groupName) {
     $sql = "
       SELECT
         comm.*
@@ -144,7 +160,15 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
 
     // check if the value is present
     $existingOptions = explode(CRM_Core_DAO::VALUE_SEPARATOR, $dao->initiatieven_themas);
-    /* TODO char voor en achter verwijderen */
+
+    // strip separator
+    if (count($existingOptions) > 0 && $existingOptions[0] == CRM_Core_DAO::VALUE_SEPARATOR) {
+      unset($existingOptions[0]);
+    }
+    if (count($existingOptions) > 0 && array_values(array_slice($existingOptions, -1))[0] == CRM_Core_DAO::VALUE_SEPARATOR) {
+      array_pop($existingOptions);
+    }
+
     if (!in_array($value, $existingOptions)) {
       // add value
       $existingOptions[] = $value;
@@ -178,6 +202,9 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
 
       CRM_Core_DAO::executeQuery($sql, $sqlParams);
     }
+
+    // mark as processed
+    $this->updateRecord($tmpTableID, $contactID, 0);
   }
 }
 
