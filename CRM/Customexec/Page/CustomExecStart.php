@@ -175,7 +175,7 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
       sort($existingOptions);
 
       $newOptions = implode(CRM_Core_DAO::VALUE_SEPARATOR, $existingOptions) . CRM_Core_DAO::VALUE_SEPARATOR;
-      if ($newOptions[0] != CRM_Core_DAO::VALUE_SEPARATOR) {
+      if (substr($newOptions, 0, 1) != CRM_Core_DAO::VALUE_SEPARATOR) {
         $newOptions = CRM_Core_DAO::VALUE_SEPARATOR . $newOptions;
       }
 
