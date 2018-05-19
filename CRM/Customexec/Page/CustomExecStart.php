@@ -158,15 +158,12 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
         throw new Exception("unexpected groupname '$groupName'");
     }
 
-    // check if the value is present
-    $existingOptions = explode(CRM_Core_DAO::VALUE_SEPARATOR, $dao->initiatieven_themas);
-
-    // strip separator
-    if (count($existingOptions) > 0 && $existingOptions[0] == CRM_Core_DAO::VALUE_SEPARATOR) {
-      unset($existingOptions[0]);
-    }
-    if (count($existingOptions) > 0 && array_values(array_slice($existingOptions, -1))[0] == CRM_Core_DAO::VALUE_SEPARATOR) {
-      array_pop($existingOptions);
+    // create array of existing values
+    $existingOptions = [];
+    foreach ($dao->initiatieven_themas as $t) {
+      if ($t != CRM_Core_DAO::VALUE_SEPARATOR) {
+        $existingOptions[] = $t;
+      }
     }
 
     if (!in_array($value, $existingOptions)) {
@@ -174,10 +171,7 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
       $existingOptions[] = $value;
       sort($existingOptions);
 
-      $newOptions = implode(CRM_Core_DAO::VALUE_SEPARATOR, $existingOptions) . CRM_Core_DAO::VALUE_SEPARATOR;
-      if (substr($newOptions, 0, 1) != CRM_Core_DAO::VALUE_SEPARATOR) {
-        $newOptions = CRM_Core_DAO::VALUE_SEPARATOR . $newOptions;
-      }
+      $newOptions = CRM_Core_DAO::VALUE_SEPARATOR . implode(CRM_Core_DAO::VALUE_SEPARATOR, $existingOptions) . CRM_Core_DAO::VALUE_SEPARATOR;
 
       if ($dao->id) {
         $sql = "
