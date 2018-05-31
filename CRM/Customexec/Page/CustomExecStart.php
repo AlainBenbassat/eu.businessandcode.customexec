@@ -49,7 +49,7 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
         $this->notfound++;
 
         // create contact
-        $contactID = $this->createContact($dao->email);
+        $contactID = $this->createContact($dao->email, $dao->first_name, $dao->last_name);
 
         $this->updateNewsletterPrefs($dao->id, $contactID, $dao->fai_vinkjes);
       }
@@ -74,10 +74,11 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
     CRM_Core_DAO::executeQuery($sql);
   }
 
-  private function createContact($email) {
+  private function createContact($email, $firstName, $lastName) {
     $params = [
       'contact_type' => 'Individual',
-      'first_name' => $email,
+      'first_name' => $firstName,
+      'last_name' => $lastName,
       'source' => 'import MailChimp mei 2018',
       'api.email.create' => [
         'email' => $email,
