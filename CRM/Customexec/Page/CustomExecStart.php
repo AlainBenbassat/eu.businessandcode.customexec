@@ -77,14 +77,23 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
   private function createContact($email, $firstName, $lastName) {
     $params = [
       'contact_type' => 'Individual',
-      'first_name' => $firstName,
-      'last_name' => $lastName,
       'source' => 'import MailChimp mei 2018',
       'api.email.create' => [
         'email' => $email,
         'location_type_id' => 2,
       ]
     ];
+
+    if ($firstName) {
+      $params['first_name'] = $firstName;
+    }
+    else {
+      $params['first_name'] = $email;
+    }
+    if ($lastName) {
+      $params['last_name'] = $lastName;
+    }
+
     $contact = civicrm_api3("Contact", "create", $params);
     return $contact['id'];
   }
