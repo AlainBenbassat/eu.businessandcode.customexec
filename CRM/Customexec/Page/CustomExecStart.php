@@ -31,7 +31,7 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
   }
 
   private function processContacts($limit) {
-    $sql = "select * from tmp_import_initiatieven where contact_id IS NULL and skip = 0 order by id limit 0,$limit";
+    $sql = "select * from tmp_import_fai where contact_id IS NULL and skip = 0 order by id limit 0,$limit";
     $dao = CRM_Core_DAO::executeQuery($sql);
 
     while ($dao->fetch()) {
@@ -51,22 +51,12 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
         // create contact
         $contactID = $this->createContact($dao->email);
 
-        if ($dao->opt_out) {
-          $this->optOut($dao->id, $contactID);
-        }
-        else {
-          $this->updateNewsletterPrefs($dao->id, $contactID, $dao->group_name);
-        }
+        $this->updateNewsletterPrefs($dao->id, $contactID, $dao->fai_vinkjes);
       }
       else if ($contact['count'] == 1) {
         $this->found++;
 
-        if ($dao->opt_out) {
-          $this->optOut($dao->id, $contactID);
-        }
-        else {
-          $this->updateNewsletterPrefs($dao->id, $contact['id'], $dao->group_name);
-        }
+        $this->updateNewsletterPrefs($dao->id, $contact['id'], $dao->fai_vinkjes);
       }
       else {
         $this->multiMatch++;
@@ -77,29 +67,18 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
   }
 
   private function updateRecord($id, $contactID, $skip) {
-    $sql = "update tmp_import_initiatieven
+    $sql = "update tmp_import_fai
       set contact_id = $contactID, skip = $skip
       where id = $id
     ";
     CRM_Core_DAO::executeQuery($sql);
   }
 
-  private function optOut($tmpTableID, $contactID) {
-    $params = [
-      'id' => $contactID,
-      'is_opt_out' => 1,
-    ];
-    civicrm_api3("Contact", "create", $params);
-
-    // mark as processed
-    $this->updateRecord($tmpTableID, $contactID, 0);
-  }
-
   private function createContact($email) {
     $params = [
       'contact_type' => 'Individual',
       'first_name' => $email,
-      'source' => 'import mei 2018',
+      'source' => 'import MailChimp mei 2018',
       'api.email.create' => [
         'email' => $email,
         'location_type_id' => 2,
@@ -109,7 +88,7 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
     return $contact['id'];
   }
 
-  private function updateNewsletterPrefs($tmpTableID, $contactID, $groupName) {
+  private function updateNewsletterPrefs($tmpTableID, $contactID, $faiVinkjes) {
     $sql = "
       SELECT
         comm.*
@@ -126,59 +105,19 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
 
     $dao = CRM_Core_DAO::executeQuery($sql, $sqlParams);
     if (!$dao->fetch() || $dao->N != 1) {
-     throw new Exception("Expected to find contact with id = $contactID");
+      throw new Exception("Expected to find contact with id = $contactID");
     }
 
-    switch ($groupName) {
-      case 'beleidKunstendecreet':
-        $value = 1;
-        break;
-      case 'positieKunstenaar':
-        $value = 8;
-        break;
-      case 'calls':
-        $value = 2;
-        break;
-      case 'documentatie':
-        $value = 4;
-        break;
-      case 'internationaalWerken':
-        $value = 6;
-        break;
-      case 'interculturaliteit':
-        $value = 5;
-        break;
-      case 'cultuurLokaal':
-        $value = 3;
-        break;
-      case 'publiekeRuimte':
-        $value = 7;
-        break;
-      default:
-        throw new Exception("unexpected groupname '$groupName'");
-    }
-
-    // create array of existing values
-    $existingOptions = [];
-    foreach ($dao->initiatieven_themas as $t) {
-      if ($t != CRM_Core_DAO::VALUE_SEPARATOR) {
-        $existingOptions[] = $t;
-      }
-    }
-
-    if (!in_array($value, $existingOptions)) {
-      // add value
-      $existingOptions[] = $value;
-      sort($existingOptions);
-
-      $newOptions = CRM_Core_DAO::VALUE_SEPARATOR . implode(CRM_Core_DAO::VALUE_SEPARATOR, $existingOptions) . CRM_Core_DAO::VALUE_SEPARATOR;
+    if (!$dao->flanders_arts_institute_news) {
+      $vinkjes = str_replace(',', CRM_Core_DAO::VALUE_SEPARATOR, $faiVinkjes);
+      $vinkjes = CRM_Core_DAO::VALUE_SEPARATOR . $vinkjes . CRM_Core_DAO::VALUE_SEPARATOR;
 
       if ($dao->id) {
         $sql = "
           UPDATE
             civicrm_value_kunstenpunt_communicatie
           SET
-            initiatieven_themas = %2
+            flanders_arts_institute_news = %2
           WHERE
             entity_id = %1
         ";
@@ -188,13 +127,13 @@ class CRM_Customexec_Page_CustomExecStart extends CRM_Core_Page {
           INSERT INTO
             civicrm_value_kunstenpunt_communicatie (entity_id, kunstenpunt_nieuws, flanders_arts_institute_news, initiatieven_themas)
           VALUES
-            (%1, '', '', %2)
+            (%1, '', %2, '')
         ";
       }
 
       $sqlParams = [
         1 => [$contactID, 'Integer'],
-        2 => [$newOptions, 'String'],
+        2 => [$vinkjes, 'String'],
       ];
 
       CRM_Core_DAO::executeQuery($sql, $sqlParams);
